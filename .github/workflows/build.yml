@@ -1,0 +1,69 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [17, 21]
+    steps:
+      - uses: actions/checkout@v5
+
+      # JDK 8 runs the tests (the pom's test-jdk8 profile picks it up from JAVA_8_HOME);
+      # the matrix JDK builds the project. The last entry becomes JAVA_HOME.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            8
+            ${{ matrix.java }}
+          cache: maven
+
+      - name: Point JAVA_8_HOME at the Java 8 install
+        run: echo "JAVA_8_HOME=$JAVA_HOME_8_X64" >> "$GITHUB_ENV"
+
+      - name: Build and test
+        run: ./mvnw -B --no-transfer-progress -Prelease verify
+
+      - name: Check the tests ran on Java 8
+        run: |
+          grep -h -o 'name="java.version" value="[^"]*"' target/surefire-reports/TEST-*.xml | sort -u
+          ! grep -h -o 'name="java.version" value="[^"]*"' target/surefire-reports/TEST-*.xml | grep -v 'value="1.8'
+
+      - name: Check the jar targets Java 8 and holds only the extension
+        run: |
+          jar=$(ls target/pinpoint-otel-extension-*.jar | grep -v -- '-sources\|-javadoc' | head -1)
+          echo "jar: $jar"
+          unzip -l "$jar"
+          unzip -o -q "$jar" -d target/jar-check
+          major=$(od -An -tu1 -j7 -N1 target/jar-check/com/navercorp/pinpoint/otel/extension/PinpointTraceStateSpec.class | tr -d ' ')
+          echo "class file major version: $major (52 = Java 8)"
+          test "$major" = "52"
+          test -f target/jar-check/META-INF/services/io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider
+          ! unzip -l "$jar" | grep -q 'io/opentelemetry/'
+
+      - name: Upload jars
+        if: matrix.java == 17
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinpoint-otel-extension
+          path: target/pinpoint-otel-extension-*.jar
+          if-no-files-found: error

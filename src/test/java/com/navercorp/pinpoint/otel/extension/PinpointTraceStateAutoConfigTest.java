@@ -110,30 +110,42 @@ class PinpointTraceStateAutoConfigTest {
 
     @Test
     void pureOtelSemconv_resourceAttributesOnly_works() {
-        // No pinpoint.* keys at all — only OTel standard semconv. Mirrors the
-        // collector's getApplicationName/getServiceName fallback chain.
+        // No pinpoint.* keys at all — only OTel standard semconv. service.name mirrors the
+        // collector's getApplicationName fallback chain; service.namespace is deliberately
+        // NOT promoted to svc because the collector pins OTLP spans to the DEFAULT service.
         Sampler result = customize(map(
                 "otel.resource.attributes",
                 "service.name=order-api,service.namespace=order-team"));
 
-        assertThat(extractPpValue(result)).isEqualTo("svc:order-team;app:order-api");
+        assertThat(extractPpValue(result)).isEqualTo("app:order-api");
     }
 
     @Test
-    void serviceNamespace_isFallbackForServiceName() {
+    void serviceNamespace_isNotAFallbackForServiceName() {
         Sampler result = customize(map(
                 "pinpoint.applicationName", "my-app",
                 "otel.resource.attributes", "service.namespace=order-team"));
 
-        assertThat(extractPpValue(result)).isEqualTo("svc:order-team;app:my-app");
+        assertThat(extractPpValue(result)).isEqualTo("app:my-app");
     }
 
     @Test
-    void pinpointServiceName_winsOverServiceNamespace() {
+    void serviceNamespaceAlone_doesNotEnableInjection() {
+        // svc has no fallback and app is absent → nothing resolves → pass-through.
+        Sampler baseline = Sampler.alwaysOn();
+        Sampler result = PinpointTraceStateAutoConfig.customizeSampler(baseline,
+                new StubConfigProperties(map(
+                        "otel.resource.attributes", "service.namespace=order-team")));
+
+        assertThat(result).isSameAs(baseline);
+    }
+
+    @Test
+    void pinpointServiceName_isTheOnlySourceOfSvc() {
         Sampler result = customize(map(
                 "pinpoint.serviceName", "explicit-svc",
                 "pinpoint.applicationName", "my-app",
-                "otel.resource.attributes", "service.namespace=fallback-svc"));
+                "otel.resource.attributes", "service.namespace=ignored-svc"));
 
         assertThat(extractPpValue(result)).isEqualTo("svc:explicit-svc;app:my-app");
     }
@@ -166,7 +178,7 @@ class PinpointTraceStateAutoConfigTest {
                 "otel.service.name", "from-config",
                 "otel.resource.attributes", "service.name=from-res,service.namespace=svc"));
 
-        assertThat(extractPpValue(result)).isEqualTo("svc:svc;app:explicit-app");
+        assertThat(extractPpValue(result)).isEqualTo("app:explicit-app");
     }
 
     @Test

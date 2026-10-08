@@ -22,28 +22,29 @@ java \
   -javaagent:opentelemetry-javaagent.jar \
   -Dotel.javaagent.extensions=/path/to/pinpoint-otel-extension-<version>.jar \
   -Dotel.service.name=order-api \
-  -Dotel.resource.attributes=pinpoint.applicationName=order-api,pinpoint.serviceName=order-team,pinpoint.applicationType=1010 \
+  -Dotel.resource.attributes=pinpoint.applicationName=order-api,pinpoint.applicationType=1010 \
   -jar app.jar
 ```
 
 Set the Pinpoint identifiers once, on the standard `OTEL_RESOURCE_ATTRIBUTES`. The same keys
 drive both ends:
 
-- The Pinpoint collector reads `pinpoint.applicationName` / `pinpoint.serviceName` off the
-  incoming Resource and uses them as the span's own `applicationName` / `serviceName`.
-- The extension reads the same keys and writes
-  `tracestate: pp=svc:order-team;app:order-api;type:1010` on outgoing requests. The
-  downstream collector parses this into the receiving span's parent application.
+- The Pinpoint collector reads `pinpoint.applicationName` off the incoming Resource and uses
+  it as the span's own `applicationName`.
+- The extension reads the same key and writes
+  `tracestate: pp=app:order-api;type:1010` on outgoing requests. The downstream collector
+  parses this into the receiving span's parent application.
 
-Deployments that only set the standard `service.name` / `service.namespace` resource
-attributes work too; both ends use the same fallback chain.
+Deployments that only set the standard `service.name` resource attribute work too; both ends
+use the same fallback chain for the application name. The service name is never derived from
+`service.namespace` (see the table below).
 
 ### Configuration keys
 
 | Pinpoint key (primary) | Fallback | Notes |
 |---|---|---|
 | `pinpoint.applicationName` | `otel.service.name`, then `service.name` (resource attribute) | At least one of these must resolve |
-| `pinpoint.serviceName` | `service.namespace` (resource attribute) | Pinpoint service grouping |
+| `pinpoint.serviceName` | none | Pinpoint service grouping. Sent only when set explicitly. Leave it unset unless the name is registered as a service on the Pinpoint side: the collector currently assigns every OTLP span to its DEFAULT service, so an unresolvable `svc` places the upstream node under a different service than the sender's own node |
 | `pinpoint.applicationType` | none | Numeric Pinpoint ServiceType code, e.g. `1010` for a WAS. Sender-only. When absent, the collector uses its default for an OpenTelemetry server |
 
 For each value the extension tries the dedicated config property first
@@ -59,8 +60,8 @@ nodes. Change `OTEL_RESOURCE_ATTRIBUTES` instead; keep the `-D` override for tes
 
 ### Disabled mode
 
-If neither `pinpoint.serviceName`, `pinpoint.applicationName` nor `otel.service.name` resolves,
-the extension leaves the SDK's sampler untouched and logs one INFO line. Agent startup is not
+If neither `pinpoint.serviceName`, `pinpoint.applicationName`, `otel.service.name` nor
+`service.name` resolves, the extension leaves the SDK's sampler untouched and logs one INFO line. Agent startup is not
 affected.
 
 ## Wire format
@@ -150,12 +151,11 @@ tasks.register<Copy>("copyOtelExtension") {
 Capture an outgoing request from the instrumented application and look for:
 
 ```
-tracestate: pp=svc:order-team;app:order-api;type:1010
+tracestate: pp=app:order-api;type:1010
 ```
 
-On the Pinpoint side the receiving span then carries `parentApplicationName = order-api`,
-`parentServiceName = order-team` and `parentApplicationServiceType = 1010`, and the server map
-draws the upstream node and the edge.
+On the Pinpoint side the receiving span then carries `parentApplicationName = order-api` and
+`parentApplicationServiceType = 1010`, and the server map draws the upstream node and the edge.
 
 ## License
 

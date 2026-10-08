@@ -41,21 +41,26 @@ import java.util.logging.Logger;
  * <pre>{@code
  * -Dotel.resource.attributes=\
  *     pinpoint.applicationName=order-api,\
- *     pinpoint.serviceName=order-team,\
  *     pinpoint.applicationType=1010
  * }</pre>
  *
- * <p>Pure OTel semantic-convention deployments also work — if you only set the
- * standard {@code service.name} / {@code service.namespace} attributes, both the
- * extension and the collector pick those up via the same fallback chain.</p>
+ * <p>Pure OTel semantic-convention deployments also work for the application name —
+ * if you only set the standard {@code service.name} attribute, both the extension and
+ * the collector pick it up via the same fallback chain. The service name has no
+ * semconv fallback: it is sent only when {@code pinpoint.serviceName} is set
+ * explicitly (see below).</p>
  *
  * <p>Supported keys (primary &rarr; fallback, mirroring
  * {@code OtlpTraceMapperUtils.getApplicationName()} / {@code getServiceName()}):</p>
  * <ul>
  *   <li>{@code pinpoint.applicationName} &rarr; {@code otel.service.name} (config
  *       key) &rarr; {@code service.name} (resource attr).</li>
- *   <li>{@code pinpoint.serviceName} &rarr; {@code service.namespace}
- *       (resource attr).</li>
+ *   <li>{@code pinpoint.serviceName} — explicit only, no fallback. The collector
+ *       currently assigns every OTLP span to its DEFAULT service, so an upstream
+ *       {@code svc} that the collector cannot resolve would place the parent node
+ *       under a different service uid than the sender's own node. Deliberately
+ *       <em>not</em> derived from {@code service.namespace} for that reason; leave it
+ *       unset unless the service name is registered on the Pinpoint side.</li>
  *   <li>{@code pinpoint.applicationType} — optional; numeric Pinpoint ServiceType
  *       code. Sender-only (no collector counterpart). When absent, the collector
  *       defaults the parent's service type to {@code OPENTELEMETRY_SERVER}.</li>
@@ -90,9 +95,9 @@ import java.util.logging.Logger;
  *
  * <h3>Disabled mode</h3>
  *
- * <p>If none of the keys for {@code applicationName} or {@code serviceName} resolves,
- * the sampler is left untouched — the extension becomes a no-op rather than failing
- * the agent startup.</p>
+ * <p>If neither {@code applicationName} nor {@code serviceName} resolves, the sampler
+ * is left untouched — the extension becomes a no-op rather than failing the agent
+ * startup.</p>
  */
 public final class PinpointTraceStateAutoConfig implements AutoConfigurationCustomizerProvider {
 
@@ -106,12 +111,14 @@ public final class PinpointTraceStateAutoConfig implements AutoConfigurationCust
     static final String CONFIG_PP_APPLICATION_NAME = "pinpoint.applicationName";
     static final String CONFIG_PP_APPLICATION_TYPE = "pinpoint.applicationType";
 
-    // OTel semantic-convention fallbacks. Mirrors the collector's fallback chain in
-    // OtlpTraceMapperUtils.getApplicationName()/getServiceName() so a deployment that
-    // only sets the standard OTel keys still produces consistent identifiers.
+    // OTel semantic-convention fallbacks for the application name. Mirrors the
+    // collector's fallback chain in OtlpTraceMapperUtils.getApplicationName() so a
+    // deployment that only sets the standard OTel keys still produces a consistent
+    // applicationName. There is intentionally no service.namespace fallback for the
+    // service name: the collector pins OTLP spans to the DEFAULT service
+    // (OtlpTraceMapperUtils.getServiceName()), so the two ends would not converge.
     static final String CONFIG_OTEL_SERVICE_NAME = "otel.service.name";   // SDK config key
     static final String CONFIG_SERVICE_NAME = "service.name";             // resource attr
-    static final String CONFIG_SERVICE_NAMESPACE = "service.namespace";   // resource attr
 
     static final String CONFIG_OTEL_RESOURCE_ATTRIBUTES = "otel.resource.attributes";
 
@@ -128,8 +135,7 @@ public final class PinpointTraceStateAutoConfig implements AutoConfigurationCust
         final Map<String, String> resAttrs = config.getMap(CONFIG_OTEL_RESOURCE_ATTRIBUTES);
 
         final String svc = resolveWithFallback(config, resAttrs,
-                CONFIG_PP_SERVICE_NAME,
-                CONFIG_SERVICE_NAMESPACE);
+                CONFIG_PP_SERVICE_NAME);
         final String app = resolveWithFallback(config, resAttrs,
                 CONFIG_PP_APPLICATION_NAME,
                 CONFIG_OTEL_SERVICE_NAME,
@@ -140,7 +146,7 @@ public final class PinpointTraceStateAutoConfig implements AutoConfigurationCust
             logger.log(Level.INFO, "Pinpoint tracestate injection disabled: "
                             + "none of {0}/{1}/{2}/{3} is set",
                     new Object[]{CONFIG_PP_APPLICATION_NAME, CONFIG_PP_SERVICE_NAME,
-                            CONFIG_OTEL_SERVICE_NAME, CONFIG_SERVICE_NAMESPACE});
+                            CONFIG_OTEL_SERVICE_NAME, CONFIG_SERVICE_NAME});
             return base;
         }
 
@@ -152,7 +158,7 @@ public final class PinpointTraceStateAutoConfig implements AutoConfigurationCust
 
     /**
      * Walk the priority list: for each key, try the dedicated config property first
-     * (e.g. {@code -Dservice.namespace=...}) and then the {@code OTEL_RESOURCE_ATTRIBUTES}
+     * (e.g. {@code -Dpinpoint.serviceName=...}) and then the {@code OTEL_RESOURCE_ATTRIBUTES}
      * entry with the same name. Move to the next key only when neither yields a
      * non-empty value.
      */

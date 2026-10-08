@@ -58,13 +58,14 @@ class AutoConfiguredSdkIntegrationTest {
     void fallsBackToSemanticConventionKeys() {
         Map<String, String> props = baseProperties();
         props.put("otel.service.name", "order-api");
+        // service.namespace is intentionally ignored: svc is explicit-only.
         props.put("otel.resource.attributes", "service.namespace=order-team");
 
         OpenTelemetrySdk sdk = build(props);
         try {
             Span span = startSpan(sdk);
             assertThat(span.getSpanContext().getTraceState().get("pp"))
-                    .isEqualTo("svc:order-team;app:order-api");
+                    .isEqualTo("app:order-api");
             span.end();
         } finally {
             sdk.close();

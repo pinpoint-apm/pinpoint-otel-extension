@@ -220,7 +220,7 @@ class PinpointTraceStateAutoConfigTest {
     private static String extractPpValue(Sampler sampler) {
         SamplingResult sr = sampler.shouldSample(
                 Context.root(), TRACE_ID, "span",
-                SpanKind.SERVER, Attributes.empty(), Collections.emptyList());
+                SpanKind.CLIENT, Attributes.empty(), Collections.emptyList());
         return sr.getUpdatedTraceState(TraceState.getDefault()).get("pp");
     }
 

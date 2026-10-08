@@ -42,7 +42,7 @@ class PinpointTraceStateSamplerTest {
     private static SamplingResult invoke(Sampler sampler) {
         return sampler.shouldSample(
                 Context.root(), TRACE_ID, "name",
-                SpanKind.SERVER, Attributes.empty(), Collections.emptyList());
+                SpanKind.CLIENT, Attributes.empty(), Collections.emptyList());
     }
 
     @Test
@@ -84,7 +84,7 @@ class PinpointTraceStateSamplerTest {
                 Sampler.alwaysOn(), "my-svc", "my-app", 1010);
 
         TraceState updated = sampler
-                .shouldSample(Context.root(), TRACE_ID, "name", SpanKind.SERVER,
+                .shouldSample(Context.root(), TRACE_ID, "name", SpanKind.CLIENT,
                         Attributes.empty(), Collections.emptyList())
                 .getUpdatedTraceState(parentTs);
 
@@ -247,16 +247,57 @@ class PinpointTraceStateSamplerTest {
     }
 
     @Test
-    void localServerSpan_isNotTreatedAsRemoteEntry() {
-        // A SERVER span whose parent is a span of this very process (no remote carrier) is an
-        // in-process hop; it is not the receiving side of a remote call, so it gets our pp.
+    void localServerSpan_getsNoPpEither() {
+        // The rule is by kind: even a SERVER span under a local parent carries nothing of ours.
+        // The collector reads the parent application from SERVER spans, so an entry written here
+        // would name this process as its own parent.
         Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
         Context parent = localParent(TraceState.getDefault());
 
         SamplingResult result = sampler.shouldSample(parent, TRACE_ID, "GET /ping", SpanKind.SERVER,
                 Attributes.empty(), Collections.emptyList());
 
-        assertThat(traceStateOf(result, parent).get("pp")).isEqualTo("svc:my-svc;app:my-app;type:1220");
+        assertThat(traceStateOf(result, parent).get("pp")).isNull();
+    }
+
+    @Test
+    void rootServerSpan_getsNoPp_butItsClientChildDoes() {
+        // First hop from a user: the SERVER span is a trace root (no remote parent). It still gets
+        // nothing — downstream propagation comes from the CLIENT child, which writes our pp itself.
+        Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
+
+        SamplingResult server = sampler.shouldSample(Context.root(), TRACE_ID, "GET /", SpanKind.SERVER,
+                Attributes.empty(), Collections.emptyList());
+        assertThat(server.getUpdatedTraceState(TraceState.getDefault()).get("pp")).isNull();
+
+        Context serverCtx = localParent(server.getUpdatedTraceState(TraceState.getDefault()));
+        SamplingResult client = sampler.shouldSample(serverCtx, TRACE_ID, "GET", SpanKind.CLIENT,
+                Attributes.empty(), Collections.emptyList());
+        assertThat(traceStateOf(client, serverCtx).get("pp")).isEqualTo("svc:my-svc;app:my-app;type:1220");
+    }
+
+    @Test
+    void kafkaReceiveThenProcess_neitherConsumerSpanCarriesOurPp() {
+        // OTel Kafka instrumentation with receive telemetry: a root CONSUMER "receive" span, then a
+        // CONSUMER "process" span under it (local parent, producer only linked). The process span
+        // is what the collector stores as the entry span; it must not carry our identity.
+        Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
+
+        SamplingResult receive = sampler.shouldSample(Context.root(), TRACE_ID, "orders receive", SpanKind.CONSUMER,
+                Attributes.empty(), Collections.emptyList());
+        TraceState receiveTs = receive.getUpdatedTraceState(TraceState.getDefault());
+        assertThat(receiveTs.get("pp")).isNull();
+
+        Context receiveCtx = localParent(receiveTs);
+        SamplingResult process = sampler.shouldSample(receiveCtx, TRACE_ID, "orders process", SpanKind.CONSUMER,
+                Attributes.empty(), Collections.emptyList());
+        assertThat(traceStateOf(process, receiveCtx).get("pp")).isNull();
+
+        // ...while a PRODUCER span issued while processing names us for the next hop.
+        Context processCtx = localParent(traceStateOf(process, receiveCtx));
+        SamplingResult producer = sampler.shouldSample(processCtx, TRACE_ID, "orders-out publish", SpanKind.PRODUCER,
+                Attributes.empty(), Collections.emptyList());
+        assertThat(traceStateOf(producer, processCtx).get("pp")).isEqualTo("svc:my-svc;app:my-app;type:1220");
     }
 
     @Test
@@ -273,16 +314,11 @@ class PinpointTraceStateSamplerTest {
     }
 
     @Test
-    void isRemoteEntry_matrix() {
-        SpanContext remote = SpanContext.createFromRemoteParent(TRACE_ID, "00f067aa0ba902b7", TraceFlags.getSampled(), TraceState.getDefault());
-        SpanContext local = SpanContext.create(TRACE_ID, "00f067aa0ba902b8", TraceFlags.getSampled(), TraceState.getDefault());
-
-        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.SERVER)).isTrue();
-        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.CONSUMER)).isTrue();
-        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.CLIENT)).isFalse();
-        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.PRODUCER)).isFalse();
-        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.INTERNAL)).isFalse();
-        assertThat(PinpointTraceStateSampler.isRemoteEntry(local, SpanKind.SERVER)).isFalse();
-        assertThat(PinpointTraceStateSampler.isRemoteEntry(SpanContext.getInvalid(), SpanKind.SERVER)).isFalse();
+    void isEntrySpan_matrix() {
+        assertThat(PinpointTraceStateSampler.isEntrySpan(SpanKind.SERVER)).isTrue();
+        assertThat(PinpointTraceStateSampler.isEntrySpan(SpanKind.CONSUMER)).isTrue();
+        assertThat(PinpointTraceStateSampler.isEntrySpan(SpanKind.CLIENT)).isFalse();
+        assertThat(PinpointTraceStateSampler.isEntrySpan(SpanKind.PRODUCER)).isFalse();
+        assertThat(PinpointTraceStateSampler.isEntrySpan(SpanKind.INTERNAL)).isFalse();
     }
 }

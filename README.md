@@ -44,7 +44,7 @@ use the same fallback chain for the application name. The service name is never 
 | Pinpoint key (primary) | Fallback | Notes |
 |---|---|---|
 | `pinpoint.applicationName` | `otel.service.name`, then `service.name` (resource attribute) | At least one of these must resolve |
-| `pinpoint.serviceName` | none | Pinpoint service grouping. Sent only when set explicitly. Leave it unset unless the name is registered as a service on the Pinpoint side: the collector currently assigns every OTLP span to its DEFAULT service, so an unresolvable `svc` places the upstream node under a different service than the sender's own node |
+| `pinpoint.serviceName` | none | Pinpoint service grouping. Sent only when set explicitly, and never derived from `service.namespace`. Set it to a service that is **registered on the Pinpoint side** (`POST /api/v2/services`): the collector resolves the same attribute on the sender's own spans through its service lookup, so an unregistered name is rejected there (`service_not_found`) and the `svc` carried to the callees would point at a service that holds no node. The collector caches a negative lookup for 10 minutes by default, so a newly registered service can take that long to be accepted. Leave it unset to stay on Pinpoint's default service |
 | `pinpoint.applicationType` | none | Numeric Pinpoint ServiceType code, e.g. `1010` for a WAS. Sender-only. When absent, the collector uses its default for an OpenTelemetry server |
 
 For each value the extension tries the dedicated config property first
@@ -86,6 +86,7 @@ direction against it.
 | Compiled against | OpenTelemetry SDK 1.53.0, Java 8 bytecode |
 | JVM of the instrumented application | Java 8 or newer |
 | Pinpoint OTLP trace collector | Builds that include the `pp` tracestate parser (`PinpointTraceStateParser`) |
+| `pinpoint.serviceName` on the collector side | Builds that include [pinpoint-apm/pinpoint#14416](https://github.com/pinpoint-apm/pinpoint/pull/14416) (the collector resolves the sender's `pinpoint.serviceName` through its service lookup). Older collectors keep every OTLP span on the default service; with those, leave `pinpoint.serviceName` unset so the `svc` sub-key is not sent |
 
 Do not load this jar together with an older build of the same extension that was shipped inside
 the Pinpoint repository; two service entries would wrap the sampler twice.

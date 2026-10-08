@@ -56,11 +56,13 @@ import java.util.logging.Logger;
  *   <li>{@code pinpoint.applicationName} &rarr; {@code otel.service.name} (config
  *       key) &rarr; {@code service.name} (resource attr).</li>
  *   <li>{@code pinpoint.serviceName} — explicit only, no fallback. The collector
- *       currently assigns every OTLP span to its DEFAULT service, so an upstream
- *       {@code svc} that the collector cannot resolve would place the parent node
- *       under a different service uid than the sender's own node. Deliberately
- *       <em>not</em> derived from {@code service.namespace} for that reason; leave it
- *       unset unless the service name is registered on the Pinpoint side.</li>
+ *       resolves the same attribute on the sender's own spans through its service
+ *       lookup and rejects a name that is not registered on the Pinpoint side
+ *       ({@code service_not_found}), so the value must be a registered service.
+ *       Deliberately <em>not</em> derived from {@code service.namespace}: an
+ *       OTel-native namespace is rarely a registered Pinpoint service, and promoting
+ *       it would either get the sender rejected or point the callees' parent node at
+ *       a service that holds no node. Leave it unset to stay on the default service.</li>
  *   <li>{@code pinpoint.applicationType} — optional; numeric Pinpoint ServiceType
  *       code. Sender-only (no collector counterpart). When absent, the collector
  *       defaults the parent's service type to {@code OPENTELEMETRY_SERVER}.</li>

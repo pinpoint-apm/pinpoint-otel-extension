@@ -17,7 +17,10 @@
 package com.navercorp.pinpoint.otel.extension;
 
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.data.LinkData;
@@ -164,5 +167,122 @@ class PinpointTraceStateSamplerTest {
                 .contains("PinpointTraceStateSampler")
                 .contains(Sampler.alwaysOn().getDescription())
                 .contains("svc:my-svc;app:my-app;type:1010");
+    }
+
+    // -----------------------------------------------------------------------
+    // Receiving side of a remote call: the caller's tracestate must survive
+    // -----------------------------------------------------------------------
+
+    private static final String CALLER_PP = "svc:caller-team;app:caller-api;type:1010";
+
+    /** The context the W3C propagator produces on the callee from incoming traceparent/tracestate. */
+    private static Context remoteParent(TraceState traceState) {
+        SpanContext remote = SpanContext.createFromRemoteParent(
+                TRACE_ID, "00f067aa0ba902b7", TraceFlags.getSampled(), traceState);
+        return Context.root().with(Span.wrap(remote));
+    }
+
+    /** A span of this process (e.g. the SERVER span) as the parent of a local child. */
+    private static Context localParent(TraceState traceState) {
+        SpanContext local = SpanContext.create(
+                TRACE_ID, "00f067aa0ba902b8", TraceFlags.getSampled(), traceState);
+        return Context.root().with(Span.wrap(local));
+    }
+
+    private static TraceState traceStateOf(SamplingResult result, Context parentContext) {
+        return result.getUpdatedTraceState(Span.fromContext(parentContext).getSpanContext().getTraceState());
+    }
+
+    @Test
+    void remoteServerSpan_keepsTheCallersPpEntry() {
+        Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
+        Context parent = remoteParent(TraceState.builder().put("pp", CALLER_PP).put("dd", "s:1").build());
+
+        SamplingResult result = sampler.shouldSample(parent, TRACE_ID, "GET /order", SpanKind.SERVER,
+                Attributes.empty(), Collections.emptyList());
+
+        // The exported SERVER span carries the caller's identity, which is what the collector
+        // reads to attach the parent application. Our own pp must not replace it.
+        assertThat(traceStateOf(result, parent).get("pp")).isEqualTo(CALLER_PP);
+        assertThat(traceStateOf(result, parent).get("dd")).isEqualTo("s:1");
+        assertThat(result.getDecision()).isEqualTo(SamplingDecision.RECORD_AND_SAMPLE);
+    }
+
+    @Test
+    void remoteServerSpan_withoutIncomingPp_addsNothing() {
+        // Caller without the extension: the collector then has no parent to record, which is
+        // correct — inventing our own identity there would draw a self edge.
+        Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
+        Context parent = remoteParent(TraceState.getDefault());
+
+        SamplingResult result = sampler.shouldSample(parent, TRACE_ID, "GET /order", SpanKind.SERVER,
+                Attributes.empty(), Collections.emptyList());
+
+        assertThat(traceStateOf(result, parent).get("pp")).isNull();
+    }
+
+    @Test
+    void remoteConsumerSpan_keepsTheCallersPpEntry() {
+        Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
+        Context parent = remoteParent(TraceState.builder().put("pp", CALLER_PP).build());
+
+        SamplingResult result = sampler.shouldSample(parent, TRACE_ID, "orders process", SpanKind.CONSUMER,
+                Attributes.empty(), Collections.emptyList());
+
+        assertThat(traceStateOf(result, parent).get("pp")).isEqualTo(CALLER_PP);
+    }
+
+    @Test
+    void localClientSpan_replacesTheCallersPpWithOurOwn() {
+        // The CLIENT span under our SERVER span is what the propagator injects downstream: it
+        // must name this process, so the next hop records us as its parent.
+        Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
+        Context parent = localParent(TraceState.builder().put("pp", CALLER_PP).put("dd", "s:1").build());
+
+        SamplingResult result = sampler.shouldSample(parent, TRACE_ID, "GET", SpanKind.CLIENT,
+                Attributes.empty(), Collections.emptyList());
+
+        assertThat(traceStateOf(result, parent).get("pp")).isEqualTo("svc:my-svc;app:my-app;type:1220");
+        assertThat(traceStateOf(result, parent).get("dd")).isEqualTo("s:1");
+    }
+
+    @Test
+    void localServerSpan_isNotTreatedAsRemoteEntry() {
+        // A SERVER span whose parent is a span of this very process (no remote carrier) is an
+        // in-process hop; it is not the receiving side of a remote call, so it gets our pp.
+        Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
+        Context parent = localParent(TraceState.getDefault());
+
+        SamplingResult result = sampler.shouldSample(parent, TRACE_ID, "GET /ping", SpanKind.SERVER,
+                Attributes.empty(), Collections.emptyList());
+
+        assertThat(traceStateOf(result, parent).get("pp")).isEqualTo("svc:my-svc;app:my-app;type:1220");
+    }
+
+    @Test
+    void rootProducerAndClientSpans_getOurPp() {
+        Sampler sampler = new PinpointTraceStateSampler(Sampler.alwaysOn(), "my-svc", "my-app", 1220);
+
+        for (SpanKind kind : new SpanKind[]{SpanKind.CLIENT, SpanKind.PRODUCER, SpanKind.INTERNAL}) {
+            SamplingResult result = sampler.shouldSample(Context.root(), TRACE_ID, "root", kind,
+                    Attributes.empty(), Collections.emptyList());
+            assertThat(result.getUpdatedTraceState(TraceState.getDefault()).get("pp"))
+                    .as("kind %s", kind)
+                    .isEqualTo("svc:my-svc;app:my-app;type:1220");
+        }
+    }
+
+    @Test
+    void isRemoteEntry_matrix() {
+        SpanContext remote = SpanContext.createFromRemoteParent(TRACE_ID, "00f067aa0ba902b7", TraceFlags.getSampled(), TraceState.getDefault());
+        SpanContext local = SpanContext.create(TRACE_ID, "00f067aa0ba902b8", TraceFlags.getSampled(), TraceState.getDefault());
+
+        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.SERVER)).isTrue();
+        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.CONSUMER)).isTrue();
+        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.CLIENT)).isFalse();
+        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.PRODUCER)).isFalse();
+        assertThat(PinpointTraceStateSampler.isRemoteEntry(remote, SpanKind.INTERNAL)).isFalse();
+        assertThat(PinpointTraceStateSampler.isRemoteEntry(local, SpanKind.SERVER)).isFalse();
+        assertThat(PinpointTraceStateSampler.isRemoteEntry(SpanContext.getInvalid(), SpanKind.SERVER)).isFalse();
     }
 }

@@ -12,8 +12,12 @@ It depends only on the OpenTelemetry SDK that the agent already ships. The jar i
 At SDK startup the extension's `AutoConfigurationCustomizerProvider`
 (`PinpointTraceStateAutoConfig`) wraps the configured `Sampler` with
 `PinpointTraceStateSampler`. The wrapper keeps the delegate's sampling decision and adds a
-`pp=svc:<svc>;app:<app>[;type:<code>]` entry to the trace state of every span. The W3C
-`tracestate` propagator then emits that entry on every outgoing HTTP / gRPC request.
+`pp=svc:<svc>;app:<app>[;type:<code>]` entry to the trace state of the spans this process
+originates (CLIENT, PRODUCER, INTERNAL and root spans). The W3C `tracestate` propagator then
+emits that entry on every outgoing HTTP / gRPC request. A SERVER or CONSUMER span that
+receives a remote call keeps the incoming trace state untouched: its `pp` entry, if any, names
+the caller, and that is what the Pinpoint collector reads off the exported span to draw the
+caller → callee edge.
 
 ## Usage
 

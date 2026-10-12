@@ -46,3 +46,33 @@ jobs:
         run: |
           ! grep -rl "com.navercorp.pinpoint" examples/java/*/pom.xml
           ! grep -rl "com.navercorp.pinpoint" examples/java/*/src
+
+  go:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: examples/go
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: examples/go/go.mod
+          cache-dependency-path: examples/go/go.sum
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build ./...
+
+  node:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: examples/node
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: examples/node/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm test

@@ -9,6 +9,11 @@ the cases one by one. An implementation is done when every row passes, not befor
 |---|---|
 | Java, `examples/java/sdk-sample` | [`PinpointTraceStateSamplerTest`](../examples/java/sdk-sample/src/test/java/sample/PinpointTraceStateSamplerTest.java) |
 | Python, `python/` | [`tests/test_sampler.py`](../python/tests/test_sampler.py) |
+| Go, `examples/go` | [`pptracestate/sampler_test.go`](../examples/go/pptracestate/sampler_test.go) |
+| Node.js, `examples/node` | [`test/sampler.test.js`](../examples/node/test/sampler.test.js) |
+
+The Java and Python test names are in the tables below; the Go and Node.js tests carry the case
+ids (A1, B2, ...) in a comment above each test and the same names in their language's spelling.
 
 ## A. Value vectors
 
@@ -39,7 +44,7 @@ the entry of the process under test.
 | B3 header | Wrapper with svc `order-team`, app `order-api`, no type. Make a CLIENT span current and inject with the W3C propagator into a map | `traceparent` present; `tracestate` = `pp=svc:order-team;app:order-api` | `outgoingHeadersCarryPp` | `test_outgoing_headers_carry_pp` |
 | B4 delegate | Wrapper around `AlwaysOff`. Parent span context with trace state `ot=th:8, pp=app:stale`. Call `shouldSample` for a CLIENT span | decision = DROP (the delegate's); result trace state has `ot` = `th:8` and `pp` = own entry (replaced, not duplicated) | `keepsTheDelegatesDecisionAndTraceStateEntries` | `test_keeps_the_delegates_decision_and_other_entries` |
 | B5 wrong placement (negative) | `ParentBased(Wrapper(AlwaysOn))`, i.e. the wrapper in the root sampler slot. Start a SERVER span, under it a CLIENT span | CLIENT span has **no** `pp`. This case documents the mistake; your wiring must put the wrapper outermost so that B1 and B2 hold | `regression_wrappedInsideParentBasedLosesPpOnChildClientSpans` | `test_regression_wrapped_inside_parentbased_loses_pp_on_child_client_spans` |
-| B6 invalid value | Wrapper with app `bad,name`. Start a CLIENT span | no `pp` (the SDK drops the invalid entry); nothing throws | – (the Java `TraceStateBuilder` drops it the same way; not pinned) | `test_invalid_value_is_dropped_silently` |
+| B6 invalid value | Wrapper with app `bad,name`. Start a CLIENT span | no `pp` (the SDK drops the invalid entry); nothing throws | – (the Java `TraceStateBuilder` drops it the same way; not pinned) | `test_invalid_value_is_dropped_silently` (Go and Node.js pin it too) |
 
 Every SDK's W3C propagator writes the span's trace state as is, so B3 follows from B1 once the
 propagator is `tracecontext`; keep the case anyway, it catches a B3-only configuration (B3
@@ -58,4 +63,4 @@ propagators, no `tracestate`).
 Not a unit test, but the final check: two processes, A calling B over HTTP, both exporting to a
 Pinpoint collector. On the server map of B the edge `A → B` appears with the call count, B shows
 no edge to itself, and in the call tree both applications are in one tree. The
-[`examples/`](../examples) show the setup for Java and Python.
+[`examples/`](../examples) show the setup for Java, Python, Go and Node.js.

@@ -40,3 +40,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 dist/
+
+# Node.js
+node_modules/

@@ -1,0 +1,22 @@
+{
+  "name": "pinpoint-otel-sampler-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pinpoint pp tracestate sampler for the OpenTelemetry JavaScript SDK, with conformance tests and two instrumented processes",
+  "license": "Apache-2.0",
+  "type": "commonjs",
+  "main": "pp-tracestate-sampler.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/context-async-hooks": "^2.10.0",
+    "@opentelemetry/core": "^2.10.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.221.0",
+    "@opentelemetry/instrumentation-http": "^0.221.0",
+    "@opentelemetry/resources": "^2.10.0",
+    "@opentelemetry/sdk-node": "^0.221.0",
+    "@opentelemetry/sdk-trace-base": "^2.10.0"
+  }
+}

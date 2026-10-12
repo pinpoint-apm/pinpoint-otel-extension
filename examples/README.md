@@ -1,16 +1,18 @@
 # Examples
 
-Runnable projects behind the guides in [`docs/`](../docs). The Java projects are built on CI
-([`examples.yml`](../.github/workflows/examples.yml)) and the Python package they use is tested
-by [`python.yml`](../.github/workflows/python.yml), so the code blocks in the guides stay copies
-of code that compiles and passes its tests. None of the Java projects depends on the extension jar
-or on any Pinpoint library; each carries its own copy of the sampler class.
+Runnable projects behind the guides in [`docs/`](../docs). The Java, Go and Node.js projects are built on CI
+([`examples.yml`](../.github/workflows/examples.yml)) and the Python package is tested by
+[`python.yml`](../.github/workflows/python.yml), so the code blocks in the guides stay copies
+of code that compiles and passes its tests. None of them depends on the extension jar or on any Pinpoint
+library; each carries its own copy of the sampler.
 
 | Project | Guide | What it shows |
 |---|---|---|
 | [`java/sdk-sample`](java/sdk-sample) | [docs/java.md](../docs/java.md), *Without the Java agent* | `PinpointTraceStateSampler` plus the manual `SdkTracerProvider` and `AutoConfiguredOpenTelemetrySdk` wirings; a caller and a callee built on the OTel API alone; tests against the wire contract file |
 | [`java/spring-boot-sample`](java/spring-boot-sample) | [docs/java.md](../docs/java.md), *Spring Boot starter* | `opentelemetry-spring-boot-starter` with one `AutoConfigurationCustomizerProvider` bean; `/call` (caller) and `/ping` (callee) endpoints |
 | [`python`](python) | [docs/python.md](../docs/python.md), *With the package* | two scripts under `opentelemetry-instrument` with `OTEL_TRACES_SAMPLER=pinpoint`: `requests` caller and WSGI callee; the package under [`python/`](../python) does the work |
+| [`go`](go) | [docs/implementing.md](../docs/implementing.md) | `pptracestate` sampler with conformance tests; otelhttp caller and callee |
+| [`node`](node) | [docs/implementing.md](../docs/implementing.md) | `pp-tracestate-sampler.js` with conformance tests (`node --test`); NodeSDK + http instrumentation caller and callee |
 
 ## Build
 
@@ -19,6 +21,8 @@ From the repository root, with JDK 17 or newer:
 ```sh
 ./mvnw -B -f examples/java/sdk-sample/pom.xml verify
 ./mvnw -B -f examples/java/spring-boot-sample/pom.xml package -DskipTests
+(cd examples/go && go test ./...)                  # Go 1.24+
+(cd examples/node && npm install && npm test)      # Node.js 20+
 ```
 
 ## Run against a Pinpoint collector

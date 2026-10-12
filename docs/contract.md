@@ -101,4 +101,6 @@ The collector only ingests traces. Point metrics and logs exporters elsewhere or
 | Java, OpenTelemetry Java agent | [README](../README.md) | agent extension jar, no code change |
 | Java, SDK configured by the application | [docs/java.md](java.md) | one `Sampler` class copied into the application, [examples/java](../examples/java) |
 | Python | [docs/python.md](python.md) | reference implementation [python/](../python) (installed from the repository or copied; `OTEL_TRACES_SAMPLER=pinpoint` under auto-instrumentation, or the class in code), [examples/python](../examples/python) |
-| Go, Node.js, .NET, or your own application | [docs/implementing.md](implementing.md) | implement the sampler yourself against the [conformance checklist](conformance.md) |
+| Go | [docs/implementing.md](implementing.md) | reference implementation [examples/go/pptracestate](../examples/go/pptracestate), wired in code |
+| Node.js | [docs/implementing.md](implementing.md) | reference implementation [examples/node](../examples/node), wired in code |
+| .NET, or your own application | [docs/implementing.md](implementing.md) | implement the sampler yourself against the [conformance checklist](conformance.md) |

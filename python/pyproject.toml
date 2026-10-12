@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pinpoint-otel-sampler"
+version = "0.1.0"
+description = "OpenTelemetry Python SDK sampler that adds the Pinpoint pp tracestate entry so a Pinpoint collector can draw caller -> callee edges"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+dependencies = [
+    "opentelemetry-sdk>=1.14",
+]
+keywords = ["pinpoint", "opentelemetry", "tracestate", "sampler"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Framework :: OpenTelemetry",
+    "Topic :: System :: Monitoring",
+]
+
+[project.urls]
+Repository = "https://github.com/pinpoint-apm/pinpoint-otel-extension"
+Documentation = "https://github.com/pinpoint-apm/pinpoint-otel-extension/blob/main/docs/python.md"
+
+# OTEL_TRACES_SAMPLER=pinpoint picks this factory up (opentelemetry-instrument and the SDK's
+# autoconfiguration alike). OTEL_TRACES_SAMPLER_ARG names the delegate sampler.
+[project.entry-points.opentelemetry_traces_sampler]
+pinpoint = "pinpoint_otel_sampler:sampler_factory"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

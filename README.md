@@ -14,7 +14,8 @@ for applications that do not run the Java agent, Java and other languages:
 |---|---|
 | [docs/contract.md](docs/contract.md) | the wire format and the rules every implementation follows |
 | [docs/java.md](docs/java.md) | Java: with the agent (this extension) and without it (one `Sampler` class in the application, for a manual SDK, `AutoConfiguredOpenTelemetrySdk` or the Spring Boot starter) |
-| [docs/python.md](docs/python.md) | Python: the reference implementation under [python/](python/) (`OTEL_TRACES_SAMPLER=pinpoint` with auto-instrumentation, no code change) or its sampler class in code |
+| [docs/python.md](docs/python.md) | Python: the reference implementation under [python/](python/), installed from this repository or copied, not published to a package index (`OTEL_TRACES_SAMPLER=pinpoint` with auto-instrumentation, no code change; or its sampler class in code) |
+| [examples/go](examples/go), [examples/node](examples/node) | Go and Node.js reference samplers with the conformance tests and an instrumented caller/callee pair each |
 | [docs/implementing.md](docs/implementing.md) | implementing the sampler in another language or in your own application, with an AI assistant or without |
 | [docs/conformance.md](docs/conformance.md) | the checklist every implementation must pass |
 | [examples/](examples/) | runnable projects the guides copy their code from, built on CI |
@@ -38,22 +39,16 @@ java \
   -javaagent:opentelemetry-javaagent.jar \
   -Dotel.javaagent.extensions=/path/to/pinpoint-otel-extension-<version>.jar \
   -Dotel.service.name=order-api \
-  -Dotel.resource.attributes=pinpoint.applicationName=order-api,pinpoint.applicationType=1010 \
+  -Dotel.resource.attributes=pinpoint.applicationType=1010 \
   -jar app.jar
 ```
 
-Set the Pinpoint identifiers once, on the standard `OTEL_RESOURCE_ATTRIBUTES`. The same keys
-drive both ends:
-
-- The Pinpoint collector reads `pinpoint.applicationName` off the incoming Resource and uses
-  it as the span's own `applicationName`.
-- The extension reads the same key and writes
-  `tracestate: pp=app:order-api;type:1010` on outgoing requests. The downstream collector
-  parses this into the receiving span's parent application.
-
-Deployments that only set the standard `service.name` resource attribute work too; both ends
-use the same fallback chain for the application name. The service name is never derived from
-`service.namespace` (see the table below).
+`otel.service.name` is enough for the application name: the extension writes
+`tracestate: pp=app:order-api;type:1010` on outgoing requests, and the Pinpoint collector reads
+the same name off the incoming Resource for the sender's own spans, so the two ends agree. The
+downstream collector parses the entry into the receiving span's parent application. The
+Pinpoint-specific keys below are for the cases the standard attributes do not cover; the service
+name is never derived from `service.namespace`.
 
 ### Configuration keys
 
@@ -125,52 +120,12 @@ Building needs JDK 11 or newer; the sources are compiled with `--release 8`.
 ./mvnw -B verify
 ```
 
-The jar is `target/pinpoint-otel-extension-<version>.jar`. The `release` profile also attaches
-the sources and javadoc jars:
+The jar is `target/pinpoint-otel-extension-<version>.jar`; put it on the agent's extension path
+(`-Dotel.javaagent.extensions=...`), not on the application classpath. The `release` profile
+also attaches the sources and javadoc jars:
 
 ```sh
 ./mvnw -B -Prelease verify
-```
-
-## Getting the jar from a Maven repository
-
-Once published, pull the jar into your build without putting it on the application classpath.
-
-Maven:
-
-```xml
-<plugin>
-  <groupId>org.apache.maven.plugins</groupId>
-  <artifactId>maven-dependency-plugin</artifactId>
-  <executions>
-    <execution>
-      <id>copy-pinpoint-otel-extension</id>
-      <phase>package</phase>
-      <goals><goal>copy</goal></goals>
-      <configuration>
-        <artifactItems>
-          <artifactItem>
-            <groupId>com.navercorp.pinpoint</groupId>
-            <artifactId>pinpoint-otel-extension</artifactId>
-            <version>${pinpoint-otel-extension.version}</version>
-            <outputDirectory>${project.build.directory}/otel</outputDirectory>
-          </artifactItem>
-        </artifactItems>
-      </configuration>
-    </execution>
-  </executions>
-</plugin>
-```
-
-Gradle:
-
-```kotlin
-val otelExtension by configurations.creating
-dependencies { otelExtension("com.navercorp.pinpoint:pinpoint-otel-extension:<version>") }
-tasks.register<Copy>("copyOtelExtension") {
-    from(otelExtension)
-    into(layout.buildDirectory.dir("otel"))
-}
 ```
 
 ## Verifying a deployment

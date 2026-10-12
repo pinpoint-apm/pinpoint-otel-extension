@@ -11,7 +11,7 @@ Pinpoint OTLP trace collector who called it, so the server map draws the caller 
 |---|---|
 | `docs/contract.md` | **the specification**: wire format, the five rules, collector compatibility |
 | `src/test/resources/pp-tracestate-contract.txt` | the value vectors, `contract-version` on line 1. Byte-identical copy in the Pinpoint collector. Read it in tests, never copy the rows |
-| `docs/conformance.md` | the checklist every implementation must pass, with the test that pins each case in Java and Python |
+| `docs/conformance.md` | the checklist every implementation must pass, with the test that pins each case in each reference implementation |
 | `docs/implementing.md` | how to implement the sampler in another language or application, with the SDK hook per language and a prompt template |
 | `src/main/java` | the Java agent extension (the shipped artifact): `PinpointTraceStateSampler`, `PinpointTraceStateAutoConfig` |
 | `examples/java/sdk-sample`, `examples/java/spring-boot-sample` | Java reference for applications without the agent; the guide `docs/java.md` copies its code from here |

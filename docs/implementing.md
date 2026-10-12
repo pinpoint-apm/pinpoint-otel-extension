@@ -1,8 +1,8 @@
 # Implementing the `pp` sampler in your own application or language
 
 The sampler is about sixty lines in any language, and most of it is the same everywhere. This
-page is for the case where neither the Java agent extension nor the Java and Python reference
-code fits as is: another language, or an application whose SDK wiring you want to own. It is
+page is for the case where neither the Java agent extension nor the Java, Python, Go and Node.js
+reference code fits as is: another language, or an application whose SDK wiring you want to own. It is
 written so that you can hand it, together with [contract.md](contract.md) and
 [conformance.md](conformance.md), to an AI coding assistant and get a working implementation
 back.
@@ -31,7 +31,9 @@ skipped, no entry when both `svc` and `app` are absent. The exact rows are in
    and how a parent-based sampler delegates (see the table in section 3).
 3. **Write the class** by translating one of the references:
    Java [`PinpointTraceStateSampler.java`](../examples/java/sdk-sample/src/main/java/sample/PinpointTraceStateSampler.java),
-   Python [`pinpoint_otel_sampler/__init__.py`](../python/src/pinpoint_otel_sampler/__init__.py).
+   Python [`pinpoint_otel_sampler/__init__.py`](../python/src/pinpoint_otel_sampler/__init__.py),
+   Go [`pptracestate/sampler.go`](../examples/go/pptracestate/sampler.go),
+   Node.js [`pp-tracestate-sampler.js`](../examples/node/pp-tracestate-sampler.js).
    The shape is always:
    ```
    result = delegate.shouldSample(...)
@@ -55,9 +57,9 @@ skipped, no entry when both `svc` and `app` are absent. The exact rows are in
 |---|---|---|---|---|---|---|
 | Java | `io.opentelemetry.sdk.trace.samplers.Sampler#shouldSample` | `SamplingResult#getUpdatedTraceState(parentTraceState)` | passed in as the argument | `Sampler.parentBased(root)` | `SdkTracerProvider.builder().setSampler(...)`; autoconfigure `addSamplerCustomizer`; Spring Boot starter `AutoConfigurationCustomizerProvider` bean; Java agent: this extension | reference, verified, [java.md](java.md) |
 | Python | `opentelemetry.sdk.trace.sampling.Sampler.should_sample` | `SamplingResult(decision, attributes, trace_state)` | **not passed by the tracer**; read `get_current_span(parent_context).get_span_context().trace_state` when the delegate's result has none. `TraceState` is immutable: `update()` upserts, `add()` refuses an existing key | `ParentBased(root)` | `TracerProvider(sampler=...)`; `OTEL_TRACES_SAMPLER=<entry point>` (the entry point *replaces* the sampler, so build the delegate yourself) | reference, verified, [python.md](python.md) |
-| Go | `sdktrace.Sampler.ShouldSample(SamplingParameters)` | `SamplingResult{Decision, Attributes, Tracestate}` | `trace.SpanContextFromContext(p.ParentContext).TraceState()`; `TraceState.Insert(key, value)` returns a new value and an error for invalid input | `sdktrace.ParentBased(root)` | `sdktrace.NewTracerProvider(sdktrace.WithSampler(...))`; no environment entry point for custom samplers | from the SDK API, not yet verified here |
-| Node.js | `Sampler.shouldSample(context, traceId, spanName, spanKind, attributes, links)` (`@opentelemetry/sdk-trace-base`) | `SamplingResult.traceState` | `trace.getSpanContext(context)?.traceState`; `TraceState.set(key, value)` (`@opentelemetry/core`) returns a new value | `ParentBasedSampler({ root })` | `NodeSDK({ sampler })` / `NodeTracerProvider({ sampler })`; `OTEL_TRACES_SAMPLER` knows the built-ins only | from the SDK API, not yet verified here |
-| .NET | `OpenTelemetry.Trace.Sampler.ShouldSample(in SamplingParameters)` | `new SamplingResult(decision, attributes, traceStateString)` | `samplingParameters.ParentContext.TraceState` (a string; append `,pp=...`, replace an existing `pp` member) | `ParentBasedSampler(root)` | `TracerProviderBuilder.SetSampler(...)`; auto-instrumentation: a plugin's `ConfigureTracerProvider` | from the SDK API, not yet verified here |
+| Go | `sdktrace.Sampler.ShouldSample(SamplingParameters)` | `SamplingResult{Decision, Attributes, Tracestate}`; the built-in samplers put the parent's trace state in `Tracestate`, so layer on the result | `trace.SpanContextFromContext(p.ParentContext).TraceState()` if a delegate returns none; `TraceState.Insert(key, value)` returns a new value, replaces an existing key and returns an error for an invalid value (leave the state unchanged then) | `sdktrace.ParentBased(root)` | `sdktrace.NewTracerProvider(sdktrace.WithSampler(...))` with `propagation.TraceContext{}`; no environment entry point for custom samplers, the wiring is in code | reference, verified, [examples/go](../examples/go) |
+| Node.js | `Sampler.shouldSample(context, traceId, spanName, spanKind, attributes, links)` (`@opentelemetry/sdk-trace-base`) | `SamplingResult.traceState`; the tracer uses it when set and the parent's trace state otherwise, and the built-in samplers set none | `trace.getSpanContext(context)?.traceState` (`@opentelemetry/api`); `TraceState.set(key, value)` (`@opentelemetry/core`) returns a new value, replaces an existing key and drops an invalid value | `ParentBasedSampler({ root })` | `new NodeSDK({ sampler })` or `new NodeTracerProvider({ sampler })`, the default propagator is W3C; `OTEL_TRACES_SAMPLER` selects built-in samplers only, so the wiring is in code | reference, verified, [examples/node](../examples/node) |
+| .NET | `OpenTelemetry.Trace.Sampler.ShouldSample(in SamplingParameters)` | `new SamplingResult(decision, attributes, traceStateString)` | `samplingParameters.ParentContext.TraceState` (a string; append `,pp=...`, replace an existing `pp` member) | `ParentBasedSampler(root)` | `TracerProviderBuilder.SetSampler(...)`; auto-instrumentation: a plugin's `ConfigureTracerProvider` | from the SDK API documentation only; not verified in this repository |
 
 Rule 1 is the same everywhere: decide by span kind, not by whether the parent is remote.
 
@@ -72,8 +74,9 @@ Implement a Pinpoint "pp" tracestate sampler for <language / framework> in <my p
 Specification: docs/contract.md (wire format and five rules) and
 src/test/resources/pp-tracestate-contract.txt (value vectors) from
 https://github.com/pinpoint-apm/pinpoint-otel-extension.
-Reference implementation to translate: <examples/java/sdk-sample/.../PinpointTraceStateSampler.java
-or python/src/pinpoint_otel_sampler/__init__.py>.
+Reference implementation to translate: <examples/java/sdk-sample/.../PinpointTraceStateSampler.java,
+python/src/pinpoint_otel_sampler/__init__.py, examples/go/pptracestate/sampler.go or
+examples/node/pp-tracestate-sampler.js>.
 
 Requirements:
 - A sampler that wraps the sampler the project uses today (<name it>) and keeps its decision.

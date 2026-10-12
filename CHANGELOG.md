@@ -8,6 +8,8 @@
 - Python: a reference implementation under `python/` (an `opentelemetry_traces_sampler` entry
   point, `OTEL_TRACES_SAMPLER=pinpoint`, installable from the repository), `docs/python.md` and
   `examples/python`.
+- Go and Node.js reference samplers under `examples/go` and `examples/node`, each with the
+  conformance tests and an instrumented caller/callee pair, built on CI.
 - `docs/conformance.md` (the checklist every implementation must pass, mapped to the Java and
   Python tests), `docs/implementing.md` (implementing the sampler in another language or
   application, with a prompt for AI coding assistants) and `AGENTS.md`.

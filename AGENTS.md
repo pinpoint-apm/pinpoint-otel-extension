@@ -17,6 +17,7 @@ Pinpoint OTLP trace collector who called it, so the server map draws the caller 
 | `examples/java/sdk-sample`, `examples/java/spring-boot-sample` | Java reference for applications without the agent; the guide `docs/java.md` copies its code from here |
 | `python/` | Python reference implementation and package; the guide `docs/python.md` copies its code from here |
 | `examples/python` | two auto-instrumented Python processes |
+| `examples/go`, `examples/node` | Go and Node.js reference samplers with conformance tests and a caller/callee pair each |
 
 ## Rules that are easy to get wrong
 
@@ -33,6 +34,7 @@ Pinpoint OTLP trace collector who called it, so the server map draws the caller 
   the Pinpoint collector, and bumps `contract-version`.
 - Build and test: Java extension `./mvnw -B verify` (JDK 11+, Java 8 bytecode); Java examples
   `./mvnw -B -f examples/java/<name>/pom.xml verify` (JDK 17); Python
-  `cd python && pip install -e ".[test]" && python -m pytest`.
+  `cd python && pip install -e ".[test]" && python -m pytest`; Go `cd examples/go && go test ./...`;
+  Node.js `cd examples/node && npm install && npm test`.
 - Prose and code comments are in English. Do not add Pinpoint libraries to the examples or to
   `python/`; they depend on the OpenTelemetry SDK only.

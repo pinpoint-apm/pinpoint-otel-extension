@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Documentation for applications that do not run the Java agent: `docs/contract.md` (the
+  language-neutral wire format and rules) and `docs/java.md` (with and without the agent), with
+  runnable projects under `examples/java` that CI builds and tests against the contract file.
+- Python: a reference implementation under `python/` (an `opentelemetry_traces_sampler` entry
+  point, `OTEL_TRACES_SAMPLER=pinpoint`, installable from the repository), `docs/python.md` and
+  `examples/python`.
+- `docs/conformance.md` (the checklist every implementation must pass, mapped to the Java and
+  Python tests), `docs/implementing.md` (implementing the sampler in another language or
+  application, with a prompt for AI coding assistants) and `AGENTS.md`.
 - Standalone project for the Pinpoint `pp` tracestate extension, moved out of the Pinpoint
   repository. Depends only on the OpenTelemetry SDK (provided by the agent at runtime).
 - Wire contract pinned by `pp-tracestate-contract.txt` (contract-version 1).

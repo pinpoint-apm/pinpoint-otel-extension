@@ -33,3 +33,10 @@ target/
 .settings/
 .project
 .classpath
+
+# Python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+dist/

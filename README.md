@@ -7,6 +7,18 @@ service, application and service type, and draw the link between the two on the 
 
 It depends only on the OpenTelemetry SDK that the agent already ships. The jar is about 10 KB.
 
+The repository also holds the language-neutral description of the `pp` entry and the guides
+for applications that do not run the Java agent, Java and other languages:
+
+| | |
+|---|---|
+| [docs/contract.md](docs/contract.md) | the wire format and the rules every implementation follows |
+| [docs/java.md](docs/java.md) | Java: with the agent (this extension) and without it (one `Sampler` class in the application, for a manual SDK, `AutoConfiguredOpenTelemetrySdk` or the Spring Boot starter) |
+| [docs/python.md](docs/python.md) | Python: the reference implementation under [python/](python/) (`OTEL_TRACES_SAMPLER=pinpoint` with auto-instrumentation, no code change) or its sampler class in code |
+| [docs/implementing.md](docs/implementing.md) | implementing the sampler in another language or in your own application, with an AI assistant or without |
+| [docs/conformance.md](docs/conformance.md) | the checklist every implementation must pass |
+| [examples/](examples/) | runnable projects the guides copy their code from, built on CI |
+
 ## How it works
 
 At SDK startup the extension's `AutoConfigurationCustomizerProvider`
@@ -68,6 +80,15 @@ If neither `pinpoint.serviceName`, `pinpoint.applicationName`, `otel.service.nam
 `service.name` resolves, the extension leaves the SDK's sampler untouched and logs one INFO line. Agent startup is not
 affected.
 
+## Without the Java agent
+
+An application that configures the OpenTelemetry SDK itself (a manual `SdkTracerProvider`,
+`AutoConfiguredOpenTelemetrySdk` or `opentelemetry-spring-boot-starter`) cannot load this jar,
+which only works on the agent's extension path. It gets the same result by copying one
+`Sampler` class into its own code and wrapping its sampler with it; no dependency on this
+artifact is needed. See [docs/java.md](docs/java.md#2-without-the-java-agent) and the
+projects under [examples/java](examples/java).
+
 ## Wire format
 
 ```
@@ -80,7 +101,8 @@ tracestate: pp=svc:<serviceName>;app:<applicationName>;type:<serviceTypeCode>
 
 The exact values are pinned by `src/test/resources/pp-tracestate-contract.txt`
 (`contract-version: 1`). The Pinpoint collector keeps an identical copy and asserts the parsing
-direction against it.
+direction against it, and so do the examples. The rules behind the format are in
+[docs/contract.md](docs/contract.md).
 
 ## Compatibility
 

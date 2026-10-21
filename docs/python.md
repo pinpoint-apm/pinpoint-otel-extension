@@ -62,7 +62,7 @@ The same keys the Java agent extension reads:
 | Key | Fallback | Notes |
 |---|---|---|
 | `pinpoint.applicationName` in `OTEL_RESOURCE_ATTRIBUTES` | `OTEL_SERVICE_NAME`, then `service.name` in `OTEL_RESOURCE_ATTRIBUTES` | one of the three must resolve; usually `OTEL_SERVICE_NAME` alone |
-| `pinpoint.serviceName` in `OTEL_RESOURCE_ATTRIBUTES` | none, explicit only | Pinpoint service grouping; registered services only |
+| `pinpoint.serviceName` in `OTEL_RESOURCE_ATTRIBUTES` | none, explicit only | Pinpoint service grouping; registered services only (3 to 254 characters of `[a-zA-Z0-9._-]`, not a reserved name) |
 | `pinpoint.applicationType` in `OTEL_RESOURCE_ATTRIBUTES` | none | numeric ServiceType code, optional |
 
 If nothing resolves the delegate is returned unchanged and no `pp` entry is written.

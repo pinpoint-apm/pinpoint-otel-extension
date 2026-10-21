@@ -5,7 +5,7 @@ extension that adds a Pinpoint `pp=...` entry to the W3C `tracestate` header. A 
 trace collector that receives spans from a downstream service can then identify the upstream
 service, application and service type, and draw the link between the two on the server map.
 
-It depends only on the OpenTelemetry SDK that the agent already ships. The jar is about 10 KB.
+It depends only on the OpenTelemetry SDK that the agent already ships. The jar is about 8 KB.
 
 The repository also holds the language-neutral description of the `pp` entry and the guides
 for applications that do not run the Java agent, Java and other languages:
@@ -55,7 +55,7 @@ name is never derived from `service.namespace`.
 | Pinpoint key (primary) | Fallback | Notes |
 |---|---|---|
 | `pinpoint.applicationName` | `otel.service.name`, then `service.name` (resource attribute) | At least one of these must resolve |
-| `pinpoint.serviceName` | none | Pinpoint service grouping. Sent only when set explicitly, and never derived from `service.namespace`. Set it to a service that is **registered on the Pinpoint side** (`POST /api/v2/services`): the collector resolves the same attribute on the sender's own spans through its service lookup, so an unregistered name is rejected there (`service_not_found`) and the `svc` carried to the callees would point at a service that holds no node. The collector caches a negative lookup for 10 minutes by default, so a newly registered service can take that long to be accepted. Leave it unset to stay on Pinpoint's default service |
+| `pinpoint.serviceName` | none | Pinpoint service grouping. Sent only when set explicitly, and never derived from `service.namespace`. Set it to a service that is **registered on the Pinpoint side** (`POST /api/v2/services` or the service configuration page of the Pinpoint web; 3 to 254 characters of `[a-zA-Z0-9._-]`, not one of the reserved names `DEFAULT`, `ERROR`, `UNKNOWN`, `NULL`): the collector resolves the same attribute on the sender's own spans through its service lookup, so an unregistered name is rejected there (`service_not_found`) and the `svc` carried to the callees would point at a service that holds no node. The collector caches a negative lookup for 10 minutes by default, so a newly registered service can take that long to be accepted. Leave it unset to stay on Pinpoint's default service |
 | `pinpoint.applicationType` | none | Numeric Pinpoint ServiceType code, e.g. `1010` for a WAS. Sender-only. When absent, the collector uses its default for an OpenTelemetry server |
 
 For each value the extension tries the dedicated config property first

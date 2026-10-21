@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 (2026-10-21)
 
+First release of the standalone extension.
+
+- Documentation of the service name rules the Pinpoint side enforces: 3 to 254 characters of
+  `[a-zA-Z0-9._-]`, and none of the reserved names `DEFAULT`, `ERROR`, `UNKNOWN`, `NULL`
+  ([pinpoint-apm/pinpoint#14457](https://github.com/pinpoint-apm/pinpoint/issues/14457)).
 - Documentation for applications that do not run the Java agent: `docs/contract.md` (the
   language-neutral wire format and rules) and `docs/java.md` (with and without the agent), with
   runnable projects under `examples/java` that CI builds and tests against the contract file.

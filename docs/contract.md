@@ -33,7 +33,7 @@ tracestate: pp=svc:<serviceName>;app:<applicationName>;type:<applicationType>
 | Part | Meaning | Rules |
 |---|---|---|
 | key `pp` | vendor key, two lowercase letters like `dd`, `nr`, `dt`, `ot` | |
-| `svc` | Pinpoint **service** name | Only a service **registered on the Pinpoint side**. Omit it to stay on Pinpoint's default service. Never derived from `service.namespace` |
+| `svc` | Pinpoint **service** name | Only a service **registered on the Pinpoint side**: 3 to 254 characters of `[a-zA-Z0-9._-]`, not one of the reserved names `DEFAULT`, `ERROR`, `UNKNOWN`, `NULL` (compared case-insensitively). Omit it to stay on Pinpoint's default service. Never derived from `service.namespace` |
 | `app` | Pinpoint **application** name | Must equal the Resource `service.name` of the same process, or the process shows up as two nodes |
 | `type` | numeric Pinpoint ServiceType code, e.g. `1010` for a WAS | Optional. When absent the collector uses its default for an OpenTelemetry server |
 
@@ -42,7 +42,8 @@ tracestate: pp=svc:<serviceName>;app:<applicationName>;type:<applicationType>
 - When **both** `svc` and `app` are absent, **no entry is written**: `type` alone means nothing
   to the collector.
 - A value containing `,` or `=` breaks the W3C `tracestate` syntax and SDKs drop such an entry
-  silently. Pinpoint names (`[a-zA-Z0-9._-]`, at most 254 characters) are always safe.
+  silently. Pinpoint names (`[a-zA-Z0-9._-]`, at most 254 characters, and at least 3 for a
+  service name) are always safe.
 - The collector ignores sub-keys it does not know, so the format can grow.
 
 The exact values are pinned by
@@ -90,6 +91,7 @@ direction against the same file.
 | Pinpoint OTLP trace collector | a build that includes the `pp` tracestate parser (`PinpointTraceStateParser`) |
 | `svc` on the collector side | a build that includes [pinpoint-apm/pinpoint#14416](https://github.com/pinpoint-apm/pinpoint/pull/14416): the collector resolves the sender's `pinpoint.serviceName` through its service lookup. Older collectors keep every OTLP span on the default service; with those, do not send `svc` |
 | Unregistered `svc` | the collector rejects the sender's own spans (`service_not_found`) and caches the negative lookup for 10 minutes by default, so a newly registered service can take that long to be accepted |
+| Service name rules | a service is registered with 3 to 254 characters of `[a-zA-Z0-9._-]`, not one of the reserved names `DEFAULT`, `ERROR`, `UNKNOWN`, `NULL` ([pinpoint-apm/pinpoint#14457](https://github.com/pinpoint-apm/pinpoint/issues/14457)). The collector itself checks only the character set and the maximum length of the sender's `pinpoint.serviceName`; a shorter or reserved name simply cannot be registered, so it ends as `service_not_found`. The `svc` carried in `pp` is not validated by the collector |
 
 The collector only ingests traces. Point metrics and logs exporters elsewhere or set them to
 `none`.

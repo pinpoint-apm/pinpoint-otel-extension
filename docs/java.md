@@ -23,9 +23,9 @@ a Pinpoint collector and web, and the code blocks of section 2 are copies of
 - OpenTelemetry Java agent 2.x.
 - `pinpoint-otel-extension-<version>.jar` (about 8 KB, Java 8 bytecode, depends only on the
   SDK the agent ships). Build it from this repository with `./mvnw -B verify` (JDK 11 or newer;
-  the jar is `target/pinpoint-otel-extension-<version>.jar`), or see the README for pulling it
-  from a Maven repository. The jar goes on the **agent's extension path**, not on the
-  application classpath.
+  the jar is `target/pinpoint-otel-extension-<version>.jar`), or take it from the Maven
+  repository your organization publishes it to. The jar goes on the **agent's extension path**,
+  not on the application classpath.
 
 ### 1.2 JVM options
 
@@ -73,7 +73,7 @@ services:
 ```
 
 `OTEL_JAVAAGENT_EXTENSIONS` is the environment form of `-Dotel.javaagent.extensions`. Set
-`pinpoint.serviceName` only to a service that is **registered** on the Pinpoint side (see
+`pinpoint.serviceName` only to a service that is **registered** on the Pinpoint side (3 to 254 characters of `[a-zA-Z0-9._-]`, not one of the reserved names `DEFAULT`, `ERROR`, `UNKNOWN`, `NULL`; see
 [contract.md](contract.md#collector-side)); leave it out to stay on the default service.
 
 ### 1.4 Configuration keys
@@ -81,7 +81,7 @@ services:
 | Key | Fallback | Notes |
 |---|---|---|
 | `pinpoint.applicationName` | `otel.service.name`, then the `service.name` resource attribute | one of the three must resolve; usually `otel.service.name` alone |
-| `pinpoint.serviceName` | none, explicit only | Pinpoint service grouping; never derived from `service.namespace`; registered services only |
+| `pinpoint.serviceName` | none, explicit only | Pinpoint service grouping; never derived from `service.namespace`; registered services only (3 to 254 characters of `[a-zA-Z0-9._-]`, not a reserved name) |
 | `pinpoint.applicationType` | none | numeric ServiceType code, optional, used by the caller only |
 
 For each key the extension tries the dedicated property (`-Dpinpoint.applicationName=...`)
@@ -456,7 +456,7 @@ the Spring Boot parent:
   pins this).
 - **`W3CTraceContextPropagator` is in the propagators.** B3 only carries no `tracestate`; a
   composite is fine.
-- **`serviceName` only for a registered service.** Otherwise `service_not_found`, and the miss
+- **`serviceName` only for a registered service** (3 to 254 characters of `[a-zA-Z0-9._-]`, not one of the reserved names `DEFAULT`, `ERROR`, `UNKNOWN`, `NULL`). Otherwise `service_not_found`, and the miss
   is cached for 10 minutes by default.
 - Metrics and logs exporters go to `none` or to another endpoint.
 
